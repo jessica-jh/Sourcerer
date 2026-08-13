@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import shutil
+import subprocess
 
 import httpx
 
@@ -14,6 +15,22 @@ from refsearch.scoring import embedding as embedding_scoring
 LIBRARY_DIR = "library"
 INDEX_PATH = os.path.join(LIBRARY_DIR, "index.jsonl")
 PDFS_DIR = os.path.join(LIBRARY_DIR, "pdfs")
+
+
+def _git_commit(message: str) -> None:
+    """Best-effort auto-commit of library/pdfs + index.jsonl so every ingest
+    is individually recoverable from git history. Silently no-ops if this
+    checkout isn't a git repo (or git isn't installed) rather than failing
+    the ingest -- version control is a safety net, not a hard dependency."""
+    try:
+        subprocess.run(["git", "add", PDFS_DIR, INDEX_PATH], check=True, capture_output=True)
+        if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
+            return  # nothing staged (e.g. not a git repo, or a no-op call)
+        result = subprocess.run(["git", "commit", "-m", message], capture_output=True)
+        if result.returncode != 0:
+            print(f"warning: git auto-commit failed: {result.stdout.decode().strip()}")
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"warning: git auto-commit skipped: {e}")
 
 
 def load_library() -> list[Paper]:
@@ -82,6 +99,7 @@ def append_to_library(
     with open(INDEX_PATH, "a") as f:
         f.write(json.dumps(dataclasses.asdict(paper)) + "\n")
     embedding_scoring.build_and_cache(paper)
+    _git_commit(f"Add to library: {paper.title!r}")
 
 
 async def ingest_pdf(

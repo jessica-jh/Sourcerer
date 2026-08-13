@@ -194,27 +194,35 @@ with tab_library:
                 col.markdown(f"**{label}**")
             st.markdown('<hr style="margin: 0.1rem 0 0.4rem 0;">', unsafe_allow_html=True)
 
+            # Fixed-height container so the row list scrolls on its own,
+            # independent of the page -- otherwise clicking a row near the
+            # bottom opens its detail panel in detail_col, but that panel is
+            # back up at the top of the page and you have to scroll all the
+            # way up to see it.
             bulk_selected: list[str] = []
-            for p in filtered:
-                row_id = p.pdf_filename or p.title
+            with st.container(height=500, border=False):
+                for p in filtered:
+                    row_id = p.pdf_filename or p.title
 
-                def _open_detail(pdf_filename=p.pdf_filename):
-                    st.session_state.library_detail = pdf_filename
-                    st.session_state[f"editing_{pdf_filename}"] = False
+                    def _open_detail(pdf_filename=p.pdf_filename):
+                        st.session_state.library_detail = pdf_filename
+                        st.session_state[f"editing_{pdf_filename}"] = False
 
-                cols = st.columns(row_widths)
-                checked = cols[0].checkbox("select", key=f"bulk_{row_id}", label_visibility="collapsed")
-                if checked and p.pdf_filename:
-                    bulk_selected.append(p.pdf_filename)
-                if cols[1].button(p.title, key=f"cell_title_{row_id}", use_container_width=True):
-                    _open_detail()
-                if cols[2].button(format_intext_authors(p.authors), key=f"cell_authors_{row_id}", use_container_width=True):
-                    _open_detail()
-                if cols[3].button(str(p.year or "n.d."), key=f"cell_year_{row_id}", use_container_width=True):
-                    _open_detail()
-                if cols[4].button(p.collection, key=f"cell_collection_{row_id}", use_container_width=True):
-                    _open_detail()
-                st.markdown('<hr style="margin: 0.1rem 0;">', unsafe_allow_html=True)
+                    cols = st.columns(row_widths)
+                    checked = cols[0].checkbox("select", key=f"bulk_{row_id}", label_visibility="collapsed")
+                    if checked and p.pdf_filename:
+                        bulk_selected.append(p.pdf_filename)
+                    if cols[1].button(p.title, key=f"cell_title_{row_id}", use_container_width=True):
+                        _open_detail()
+                    if cols[2].button(
+                        format_intext_authors(p.authors), key=f"cell_authors_{row_id}", use_container_width=True
+                    ):
+                        _open_detail()
+                    if cols[3].button(str(p.year or "n.d."), key=f"cell_year_{row_id}", use_container_width=True):
+                        _open_detail()
+                    if cols[4].button(p.collection, key=f"cell_collection_{row_id}", use_container_width=True):
+                        _open_detail()
+                    st.markdown('<hr style="margin: 0.1rem 0;">', unsafe_allow_html=True)
 
             if bulk_selected:
                 st.markdown(f"**{len(bulk_selected)} selected**")
