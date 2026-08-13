@@ -129,20 +129,83 @@ def _extract_full_text(root: ET.Element) -> str:
     return "\n".join(p for p in paragraphs if p)
 
 
+_PLACEHOLDER_TITLES = {
+    "untitled", "untitled document", "untitled-1", "unknown", "no title",
+    "document", "new document", "microsoft word", "default",
+}
+
+
+def _is_plausible_title(text: str) -> bool:
+    """Rejects /Title metadata that isn't actually a title. Observed in the
+    wild: authoring-tool placeholders left unset ("untitled"), and internal
+    system/tracking codes some publisher PDF pipelines (e.g. EBSCO exports)
+    stamp into the field instead ("1ld;01dec98") -- neither should end up
+    displayed as the paper's title. A real title is essentially always
+    multiple words with mostly alphabetic content; single short tokens and
+    strings dominated by digits/punctuation are the two failure modes seen,
+    so both are rejected here rather than passed through verbatim."""
+    t = text.strip()
+    if not t:
+        return False
+    if t.lower() in _PLACEHOLDER_TITLES:
+        return False
+    if len(t.split()) < 2 and len(t) < 20:
+        return False
+    letters = sum(c.isalpha() for c in t)
+    return letters >= len(t) * 0.5
+
+
 def extract_metadata_title(pdf_path: str) -> str:
     """Falls back to the PDF's own /Title metadata (set by the authoring tool
     -- Word, LaTeX, Acrobat, etc. -- at export time) when GROBID's layout-based
     header model finds nothing. GROBID reads visual layout on the page, which
     can miss a title that's stylistically unusual; the embedded metadata is a
-    separate, often-more-reliable source that costs nothing extra to check."""
+    separate, often-more-reliable source that costs nothing extra to check.
+    Returns "" (letting the caller fall through to its next fallback) when the
+    metadata value doesn't look like a real title -- see _is_plausible_title."""
     try:
         from pypdf import PdfReader
 
         reader = PdfReader(pdf_path)
         title = (reader.metadata.title or "").strip() if reader.metadata else ""
+        if not _is_plausible_title(title):
+            return ""
         return _smart_title_case(title)
     except Exception:
         return ""
+
+
+_AUTHOR_SPLIT_RE = re.compile(r"\s*(?:,| and |&|;)\s*")
+
+
+def _is_plausible_author(name: str) -> bool:
+    """Same rationale as _is_plausible_title: some PDF pipelines stamp an
+    internal username/system code into /Author (observed: "bos") instead of a
+    real name. A single all-lowercase token with no separators reads as a
+    code, not a name; genuine single-word author metadata is capitalized."""
+    n = name.strip()
+    if len(n) < 2:
+        return False
+    if " " not in n and not (n[:1].isupper() and n.isalpha()):
+        return False
+    return True
+
+
+def extract_metadata_authors(pdf_path: str) -> list[str]:
+    """Falls back to the PDF's own /Author metadata when GROBID's header model
+    finds no authors. Splits on common multi-author delimiters and drops
+    entries that don't look like plausible names (see _is_plausible_author)."""
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(pdf_path)
+        raw = (reader.metadata.author or "").strip() if reader.metadata else ""
+        if not raw:
+            return []
+        candidates = [a.strip() for a in _AUTHOR_SPLIT_RE.split(raw) if a.strip()]
+        return [a for a in candidates if _is_plausible_author(a)]
+    except Exception:
+        return []
 
 
 _PDF_DATE_YEAR_RE = re.compile(r"D:(\d{4})")

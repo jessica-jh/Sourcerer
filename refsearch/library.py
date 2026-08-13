@@ -3,6 +3,7 @@ import dataclasses
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -15,6 +16,8 @@ from refsearch.scoring import embedding as embedding_scoring
 LIBRARY_DIR = "library"
 INDEX_PATH = os.path.join(LIBRARY_DIR, "index.jsonl")
 PDFS_DIR = os.path.join(LIBRARY_DIR, "pdfs")
+
+_DEDUPE_SUFFIX_RE = re.compile(r"\s*\(\d+\)$")
 
 
 def _git_commit(message: str) -> None:
@@ -116,8 +119,15 @@ async def ingest_pdf(
         paper.title = grobid_client.extract_metadata_title(pdf_path)
     if paper.year is None:
         paper.year = grobid_client.extract_metadata_year(pdf_path)
+    if not paper.authors:
+        paper.authors = grobid_client.extract_metadata_authors(pdf_path)
     if not paper.title:
-        paper.title = os.path.splitext(original_filename or os.path.basename(pdf_path))[0]
+        stem = os.path.splitext(original_filename or os.path.basename(pdf_path))[0]
+        # Both GROBID and /Title metadata found nothing usable -- last resort
+        # is the filename, but strip a "(1)"/"(2)" suffix if present so a
+        # title doesn't visibly expose our own dedup-renaming scheme
+        # (_unique_dest_name) to the user.
+        paper.title = _DEDUPE_SUFFIX_RE.sub("", stem).strip()
     async with _ingest_lock:
         duplicate = find_duplicate(paper)
         if duplicate:
