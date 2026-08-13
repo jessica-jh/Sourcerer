@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+results.jsonl
+references.bib
+.env
+library/embeddings/
