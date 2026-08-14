@@ -166,6 +166,23 @@ def rebuild_embeddings() -> int:
     return len(papers)
 
 
+def backfill_missing_embeddings() -> int:
+    """Like rebuild_embeddings, but only touches papers whose .npz cache is
+    missing, instead of recomputing all of them. append_to_library writes the
+    index.jsonl record and then calls build_and_cache as two separate steps
+    (not atomic) -- a crash/restart landing between them leaves a permanent
+    gap that nothing else detects, silently forcing a slow on-the-fly
+    re-embed on every search for that paper (refsearch.scoring.embedding
+    already falls back to that, correctly but slowly). Cheap to call
+    unconditionally (e.g. once per app startup): a healthy library is a
+    no-op. Returns the number of papers backfilled."""
+    papers = load_library()
+    missing = [p for p in papers if p.pdf_filename and not embedding_scoring.cache_exists(p.pdf_filename)]
+    for p in missing:
+        embedding_scoring.build_and_cache(p)
+    return len(missing)
+
+
 def list_collections() -> list[str]:
     return sorted({p.collection or "Uncategorized" for p in load_library()})
 

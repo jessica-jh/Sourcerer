@@ -16,6 +16,19 @@ load_dotenv()
 
 st.set_page_config(page_title="Reference Library", layout="wide")
 
+
+@st.cache_resource
+def _startup_backfill_embeddings() -> int:
+    """Runs once per app process (st.cache_resource, not per-rerun) so a
+    crashed/interrupted ingest's missing embedding cache (see
+    library.backfill_missing_embeddings) gets repaired automatically on the
+    next app start instead of silently staying slow until someone remembers
+    to run `library_finder.py rebuild-embeddings` by hand."""
+    return library.backfill_missing_embeddings()
+
+
+_startup_backfill_embeddings()
+
 API_KEY = os.environ.get("OPENAI_API_KEY")
 GROBID_URL = "http://localhost:8070"
 MODEL = "gpt-4o-mini"

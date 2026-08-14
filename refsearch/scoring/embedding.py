@@ -45,6 +45,10 @@ def delete_cache(pdf_filename: str) -> None:
         os.remove(path)
 
 
+def cache_exists(pdf_filename: str) -> bool:
+    return os.path.exists(_cache_path(pdf_filename))
+
+
 def _load_cache(pdf_filename: str) -> tuple[list[str], np.ndarray] | None:
     path = _cache_path(pdf_filename)
     if not os.path.exists(path):
