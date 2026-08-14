@@ -21,15 +21,19 @@ def _reconstruct_abstract(inverted_index: dict | None) -> str:
     return " ".join(word for _, word in positions)
 
 
-def paper_from_work(item: dict) -> Paper:
-    authorships = item.get("authorships") or []
+def _venue_from_work(item: dict) -> str:
     primary_location = item.get("primary_location") or {}
     source = primary_location.get("source") or {}
+    return source.get("display_name") or ""
+
+
+def paper_from_work(item: dict) -> Paper:
+    authorships = item.get("authorships") or []
     return Paper(
         title=item.get("title") or item.get("display_name") or "",
         authors=[(a.get("author") or {}).get("display_name", "") for a in authorships],
         year=item.get("publication_year"),
-        venue=source.get("display_name") or "",
+        venue=_venue_from_work(item),
         doi=(item.get("doi") or "").replace("https://doi.org/", "") or None,
         abstract=_reconstruct_abstract(item.get("abstract_inverted_index")),
         url=item.get("id") or "",
@@ -59,6 +63,26 @@ async def search(
         return []
     data = response.json()
     return [paper_from_work(item) for item in data.get("results", [])]
+
+
+async def get_work_by_doi(client: httpx.AsyncClient, doi: str, *, api_key: str) -> dict | None:
+    """Resolves a work directly by DOI (OpenAlex accepts the DOI URL as a path
+    segment on the /works endpoint). Used to backfill venue for library papers
+    where GROBID found a DOI in the PDF but not a monogr/title -- a DOI lookup
+    is exact, unlike find_work_by_title's similarity-matched title search, so
+    it's preferred whenever a DOI is available."""
+    if not api_key or not doi:
+        return None
+    url = f"{_API_URL}/https://doi.org/{doi.strip()}"
+    params = {"api_key": api_key}
+
+    async def call():
+        return await client.get(url, params=params, timeout=20)
+
+    response = await with_backoff(call)
+    if response.status_code != 200:
+        return None
+    return response.json()
 
 
 async def find_work_by_title(

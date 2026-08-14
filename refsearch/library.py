@@ -12,6 +12,7 @@ import httpx
 from refsearch import grobid_client
 from refsearch.models import Paper
 from refsearch.scoring import embedding as embedding_scoring
+from refsearch.sources import openalex
 
 LIBRARY_DIR = "library"
 INDEX_PATH = os.path.join(LIBRARY_DIR, "index.jsonl")
@@ -105,29 +106,46 @@ def append_to_library(
     _git_commit(f"Add to library: {paper.title!r}")
 
 
+async def _backfill_venue_via_doi(client: httpx.AsyncClient, paper: Paper, openalex_api_key: str | None) -> None:
+    """Fills in paper.venue from OpenAlex when GROBID's layout-based extractor
+    found a DOI but not a monogr/title -- common for working papers and some
+    journal templates, where the venue name isn't laid out near the title the
+    way GROBID expects. Looked up once, here, at ingest/reparse time and
+    written into the permanent library record, so search/display never need
+    a network call for it afterwards. No-ops without a DOI or an API key."""
+    key = openalex_api_key or os.environ.get("OPENALEX_API_KEY")
+    if paper.venue or not paper.doi or not key:
+        return
+    work = await openalex.get_work_by_doi(client, paper.doi, api_key=key)
+    if work:
+        paper.venue = openalex._venue_from_work(work)
+
+
 async def ingest_pdf(
     pdf_path: str,
     *,
     grobid_url: str = "http://localhost:8070",
     original_filename: str | None = None,
     collection: str = "Uncategorized",
+    openalex_api_key: str | None = None,
 ) -> Paper:
     async with httpx.AsyncClient() as client:
         tei_xml = await grobid_client.process_pdf(client, pdf_path, grobid_url=grobid_url)
-    paper = grobid_client.parse_tei(tei_xml)
-    if not paper.title:
-        paper.title = grobid_client.extract_metadata_title(pdf_path)
-    if paper.year is None:
-        paper.year = grobid_client.extract_metadata_year(pdf_path)
-    if not paper.authors:
-        paper.authors = grobid_client.extract_metadata_authors(pdf_path)
-    if not paper.title:
-        stem = os.path.splitext(original_filename or os.path.basename(pdf_path))[0]
-        # Both GROBID and /Title metadata found nothing usable -- last resort
-        # is the filename, but strip a "(1)"/"(2)" suffix if present so a
-        # title doesn't visibly expose our own dedup-renaming scheme
-        # (_unique_dest_name) to the user.
-        paper.title = _DEDUPE_SUFFIX_RE.sub("", stem).strip()
+        paper = grobid_client.parse_tei(tei_xml)
+        if not paper.title:
+            paper.title = grobid_client.extract_metadata_title(pdf_path)
+        if paper.year is None:
+            paper.year = grobid_client.extract_metadata_year(pdf_path)
+        if not paper.authors:
+            paper.authors = grobid_client.extract_metadata_authors(pdf_path)
+        if not paper.title:
+            stem = os.path.splitext(original_filename or os.path.basename(pdf_path))[0]
+            # Both GROBID and /Title metadata found nothing usable -- last resort
+            # is the filename, but strip a "(1)"/"(2)" suffix if present so a
+            # title doesn't visibly expose our own dedup-renaming scheme
+            # (_unique_dest_name) to the user.
+            paper.title = _DEDUPE_SUFFIX_RE.sub("", stem).strip()
+        await _backfill_venue_via_doi(client, paper, openalex_api_key)
     async with _ingest_lock:
         duplicate = find_duplicate(paper)
         if duplicate:
@@ -196,7 +214,9 @@ def update_paper(pdf_filename: str, new_paper: Paper) -> None:
 _TITLE_SIMILARITY_FLOOR = 0.5
 
 
-async def reparse_pdf(paper: Paper, *, grobid_url: str = "http://localhost:8070") -> Paper:
+async def reparse_pdf(
+    paper: Paper, *, grobid_url: str = "http://localhost:8070", openalex_api_key: str | None = None
+) -> Paper:
     """Re-runs GROBID on the already-stored PDF (no re-upload needed) and
     updates the library record in place, keeping pdf_filename/added_at/
     collection from the existing entry. Useful after a parser fix (e.g. venue
@@ -219,11 +239,14 @@ async def reparse_pdf(paper: Paper, *, grobid_url: str = "http://localhost:8070"
     pdf_path = os.path.join(PDFS_DIR, paper.pdf_filename)
     async with httpx.AsyncClient() as client:
         tei_xml = await grobid_client.process_pdf(client, pdf_path, grobid_url=grobid_url)
-    fresh = grobid_client.parse_tei(tei_xml)
-    if not fresh.title:
-        fresh.title = grobid_client.extract_metadata_title(pdf_path)
-    if fresh.year is None:
-        fresh.year = grobid_client.extract_metadata_year(pdf_path)
+        fresh = grobid_client.parse_tei(tei_xml)
+        if not fresh.title:
+            fresh.title = grobid_client.extract_metadata_title(pdf_path)
+        if fresh.year is None:
+            fresh.year = grobid_client.extract_metadata_year(pdf_path)
+        if not fresh.authors:
+            fresh.authors = grobid_client.extract_metadata_authors(pdf_path)
+        await _backfill_venue_via_doi(client, fresh, openalex_api_key)
 
     title = paper.title
     if fresh.title and (
