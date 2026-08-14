@@ -92,7 +92,7 @@ def _build_prompt(
     lines.append(
         "\nRespond ONLY with a JSON array, one object per candidate id, each with "
         'keys "id" (must exactly match one of the bracketed candidate ids above), '
-        '"score" (1-5), and "rationale" (<=25 words, referring only to the abstract '
+        '"score" (1-5), and "rationale" (<=10 words, referring only to the abstract '
         "content, never to a title/author/venue you were not given)."
     )
     return "\n".join(lines)
