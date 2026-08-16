@@ -372,7 +372,7 @@ with tab_search:
     st.subheader("Find a supporting paper for a claim sentence")
     search_collection = _collection_picker("Collection", key="search_collection_filter")
     sentence = st.text_area("Claim sentence", key="search_sentence")
-    top_n = st.slider("Top N", 1, 10, 5)
+    top_n = st.slider("Top N", 1, 10, 5, key="search_top_n")
     if st.button("Search library"):
         papers = library.load_library()
         if search_collection != "All":
@@ -384,8 +384,22 @@ with tab_search:
         else:
             with st.spinner("Scoring library candidates..."):
                 results = asyncio.run(find_supporting(sentence, papers, api_key=API_KEY, model=MODEL))
-            if not results:
-                st.info("No candidates found.")
+            # Kept in session_state (not a local var) so results survive
+            # switching to another tab and back -- otherwise the only way to
+            # see them again is re-running the search, burning another LLM
+            # call for no reason. A fresh claim needs an explicit re-search
+            # (button press) same as before; this only avoids losing what
+            # was already paid for.
+            st.session_state.search_results = results
+            st.session_state.search_results_sentence = sentence
+
+    results = st.session_state.get("search_results")
+    if results is not None:
+        if sentence.strip() and sentence != st.session_state.get("search_results_sentence"):
+            st.caption("Showing results for a previous claim — press \"Search library\" again to search this one.")
+        if not results:
+            st.info("No candidates found.")
+        else:
             shown = results[:top_n]
             strong_count = sum(1 for sp in shown if sp.score >= STRONG_MATCH_THRESHOLD)
             if shown and strong_count < len(shown):
