@@ -204,131 +204,130 @@ with tab_library:
             col.markdown(f"**{label}**")
         st.markdown('<hr style="margin: 0.1rem 0 0.4rem 0;">', unsafe_allow_html=True)
 
-        # Fixed-height container so the row list scrolls on its own,
-        # independent of the page. Detail now renders inline directly under
-        # its row (accordion-style, pushing later rows down) instead of in a
-        # separate side panel that stayed at the top of the page regardless
-        # of which row you clicked.
+        # Detail renders inline directly under its row (accordion-style,
+        # pushing later rows down) instead of in a separate side panel.
+        # Page-level scroll now (not a fixed-height sub-container): with no
+        # side panel to keep in view, there's no reason to cap the table's
+        # height -- letting the page scroll shows more of the list at once.
         bulk_selected: list[str] = []
-        with st.container(height=500, border=False):
-            for p in filtered:
-                row_id = p.pdf_filename or p.title
+        for p in filtered:
+            row_id = p.pdf_filename or p.title
 
-                def _toggle_detail(pdf_filename=p.pdf_filename):
-                    if st.session_state.get("library_detail") == pdf_filename:
+            def _toggle_detail(pdf_filename=p.pdf_filename):
+                if st.session_state.get("library_detail") == pdf_filename:
+                    st.session_state.library_detail = None
+                else:
+                    st.session_state.library_detail = pdf_filename
+                    st.session_state[f"editing_{pdf_filename}"] = False
+
+            cols = st.columns(row_widths)
+            checked = cols[0].checkbox("select", key=f"bulk_{row_id}", label_visibility="collapsed")
+            if checked and p.pdf_filename:
+                bulk_selected.append(p.pdf_filename)
+            if cols[1].button(p.title, key=f"cell_title_{row_id}", use_container_width=True):
+                _toggle_detail()
+            if cols[2].button(
+                format_intext_authors(p.authors), key=f"cell_authors_{row_id}", use_container_width=True
+            ):
+                _toggle_detail()
+            if cols[3].button(str(p.year or "n.d."), key=f"cell_year_{row_id}", use_container_width=True):
+                _toggle_detail()
+            if cols[4].button(p.collection, key=f"cell_collection_{row_id}", use_container_width=True):
+                _toggle_detail()
+            st.markdown('<hr style="margin: 0.1rem 0;">', unsafe_allow_html=True)
+
+            if p.pdf_filename and p.pdf_filename == st.session_state.get("library_detail"):
+                detail_filename = p.pdf_filename
+                with st.container(border=True):
+                    if st.button("✕ Close", key=f"close_btn_{detail_filename}"):
                         st.session_state.library_detail = None
-                    else:
-                        st.session_state.library_detail = pdf_filename
-                        st.session_state[f"editing_{pdf_filename}"] = False
-
-                cols = st.columns(row_widths)
-                checked = cols[0].checkbox("select", key=f"bulk_{row_id}", label_visibility="collapsed")
-                if checked and p.pdf_filename:
-                    bulk_selected.append(p.pdf_filename)
-                if cols[1].button(p.title, key=f"cell_title_{row_id}", use_container_width=True):
-                    _toggle_detail()
-                if cols[2].button(
-                    format_intext_authors(p.authors), key=f"cell_authors_{row_id}", use_container_width=True
-                ):
-                    _toggle_detail()
-                if cols[3].button(str(p.year or "n.d."), key=f"cell_year_{row_id}", use_container_width=True):
-                    _toggle_detail()
-                if cols[4].button(p.collection, key=f"cell_collection_{row_id}", use_container_width=True):
-                    _toggle_detail()
-                st.markdown('<hr style="margin: 0.1rem 0;">', unsafe_allow_html=True)
-
-                if p.pdf_filename and p.pdf_filename == st.session_state.get("library_detail"):
-                    detail_filename = p.pdf_filename
-                    with st.container(border=True):
-                        if st.button("✕ Close", key=f"close_btn_{detail_filename}"):
-                            st.session_state.library_detail = None
+                        st.rerun()
+                    editing = st.session_state.get(f"editing_{detail_filename}", False)
+                    if not editing:
+                        st.markdown(f"### {p.title}")
+                        st.markdown(f"*{format_intext_authors(p.authors)}*")
+                        st.markdown(
+                            f"**Authors:** {', '.join(p.authors) or 'Unknown'}  \n"
+                            f"**Year:** {p.year or 'n.d.'}  \n"
+                            f"**Journal:** {p.venue or '—'}  \n"
+                            f"**Collection:** {p.collection}"
+                        )
+                        if p.abstract:
+                            st.markdown(f"**Abstract:** {p.abstract}")
+                        else:
+                            st.caption("No abstract extracted.")
+                        if st.button("✏️ Edit info", key=f"edit_btn_{detail_filename}"):
+                            st.session_state[f"editing_{detail_filename}"] = True
                             st.rerun()
-                        editing = st.session_state.get(f"editing_{detail_filename}", False)
-                        if not editing:
-                            st.markdown(f"### {p.title}")
-                            st.markdown(f"*{format_intext_authors(p.authors)}*")
-                            st.markdown(
-                                f"**Authors:** {', '.join(p.authors) or 'Unknown'}  \n"
-                                f"**Year:** {p.year or 'n.d.'}  \n"
-                                f"**Journal:** {p.venue or '—'}  \n"
-                                f"**Collection:** {p.collection}"
+                    else:
+                        st.markdown("#### Edit paper info")
+                        new_title = st.text_input("Title", value=p.title, key=f"edit_title_{detail_filename}")
+                        new_authors = st.text_input(
+                            "Authors (comma-separated)",
+                            value=", ".join(p.authors),
+                            key=f"edit_authors_{detail_filename}",
+                        )
+                        new_year = st.number_input(
+                            "Year", value=p.year or 0, min_value=0, max_value=2100, key=f"edit_year_{detail_filename}"
+                        )
+                        new_venue = st.text_input("Journal", value=p.venue, key=f"edit_venue_{detail_filename}")
+                        save_col, cancel_col = st.columns(2)
+                        if save_col.button("Save", key=f"save_{detail_filename}"):
+                            edited = dataclasses.replace(
+                                p,
+                                title=new_title.strip() or p.title,
+                                authors=[a.strip() for a in new_authors.split(",") if a.strip()],
+                                year=int(new_year) or None,
+                                venue=new_venue.strip(),
                             )
-                            if p.abstract:
-                                st.markdown(f"**Abstract:** {p.abstract}")
-                            else:
-                                st.caption("No abstract extracted.")
-                            if st.button("✏️ Edit info", key=f"edit_btn_{detail_filename}"):
-                                st.session_state[f"editing_{detail_filename}"] = True
+                            library.update_paper(detail_filename, edited)
+                            st.session_state[f"editing_{detail_filename}"] = False
+                            st.rerun()
+                        if cancel_col.button("Cancel", key=f"cancel_{detail_filename}"):
+                            st.session_state[f"editing_{detail_filename}"] = False
+                            st.rerun()
+
+                    pdf_path = os.path.join(library.PDFS_DIR, p.pdf_filename) if p.pdf_filename else None
+                    pdf_exists = bool(pdf_path and os.path.exists(pdf_path))
+
+                    btn_col1, btn_col2, btn_col3 = st.columns(3)
+                    with btn_col1:
+                        if pdf_exists:
+                            with open(pdf_path, "rb") as f:
+                                st.download_button(
+                                    "Download PDF",
+                                    f.read(),
+                                    file_name=p.pdf_filename,
+                                    mime="application/pdf",
+                                    key=f"dl_{p.pdf_filename}",
+                                )
+                        else:
+                            st.caption("Original PDF not found.")
+                    with btn_col2:
+                        reparse_key = f"reparse_{p.pdf_filename}"
+                        if pdf_exists and st.button("🔄 Re-parse", key=reparse_key):
+                            with st.spinner("Re-parsing via GROBID..."):
+                                asyncio.run(library.reparse_pdf(p, grobid_url=GROBID_URL))
+                            st.rerun()
+                    with btn_col3:
+                        delete_key = f"delete_{p.pdf_filename or p.title}"
+                        confirm_key = f"confirm_{delete_key}"
+                        if not st.session_state.get(confirm_key):
+                            if st.button("🗑 Delete", key=delete_key):
+                                st.session_state[confirm_key] = True
                                 st.rerun()
                         else:
-                            st.markdown("#### Edit paper info")
-                            new_title = st.text_input("Title", value=p.title, key=f"edit_title_{detail_filename}")
-                            new_authors = st.text_input(
-                                "Authors (comma-separated)",
-                                value=", ".join(p.authors),
-                                key=f"edit_authors_{detail_filename}",
-                            )
-                            new_year = st.number_input(
-                                "Year", value=p.year or 0, min_value=0, max_value=2100, key=f"edit_year_{detail_filename}"
-                            )
-                            new_venue = st.text_input("Journal", value=p.venue, key=f"edit_venue_{detail_filename}")
-                            save_col, cancel_col = st.columns(2)
-                            if save_col.button("Save", key=f"save_{detail_filename}"):
-                                edited = dataclasses.replace(
-                                    p,
-                                    title=new_title.strip() or p.title,
-                                    authors=[a.strip() for a in new_authors.split(",") if a.strip()],
-                                    year=int(new_year) or None,
-                                    venue=new_venue.strip(),
-                                )
-                                library.update_paper(detail_filename, edited)
-                                st.session_state[f"editing_{detail_filename}"] = False
+                            st.warning("Delete this paper permanently?")
+                            yes_col, no_col = st.columns(2)
+                            if yes_col.button("Yes, delete", key=f"{delete_key}_yes"):
+                                library.delete_paper(p)
+                                st.session_state.pop(confirm_key, None)
+                                st.session_state.library_detail = None
                                 st.rerun()
-                            if cancel_col.button("Cancel", key=f"cancel_{detail_filename}"):
-                                st.session_state[f"editing_{detail_filename}"] = False
+                            if no_col.button("Cancel", key=f"{delete_key}_no"):
+                                st.session_state.pop(confirm_key, None)
                                 st.rerun()
-
-                        pdf_path = os.path.join(library.PDFS_DIR, p.pdf_filename) if p.pdf_filename else None
-                        pdf_exists = bool(pdf_path and os.path.exists(pdf_path))
-
-                        btn_col1, btn_col2, btn_col3 = st.columns(3)
-                        with btn_col1:
-                            if pdf_exists:
-                                with open(pdf_path, "rb") as f:
-                                    st.download_button(
-                                        "Download PDF",
-                                        f.read(),
-                                        file_name=p.pdf_filename,
-                                        mime="application/pdf",
-                                        key=f"dl_{p.pdf_filename}",
-                                    )
-                            else:
-                                st.caption("Original PDF not found.")
-                        with btn_col2:
-                            reparse_key = f"reparse_{p.pdf_filename}"
-                            if pdf_exists and st.button("🔄 Re-parse", key=reparse_key):
-                                with st.spinner("Re-parsing via GROBID..."):
-                                    asyncio.run(library.reparse_pdf(p, grobid_url=GROBID_URL))
-                                st.rerun()
-                        with btn_col3:
-                            delete_key = f"delete_{p.pdf_filename or p.title}"
-                            confirm_key = f"confirm_{delete_key}"
-                            if not st.session_state.get(confirm_key):
-                                if st.button("🗑 Delete", key=delete_key):
-                                    st.session_state[confirm_key] = True
-                                    st.rerun()
-                            else:
-                                st.warning("Delete this paper permanently?")
-                                yes_col, no_col = st.columns(2)
-                                if yes_col.button("Yes, delete", key=f"{delete_key}_yes"):
-                                    library.delete_paper(p)
-                                    st.session_state.pop(confirm_key, None)
-                                    st.session_state.library_detail = None
-                                    st.rerun()
-                                if no_col.button("Cancel", key=f"{delete_key}_no"):
-                                    st.session_state.pop(confirm_key, None)
-                                    st.rerun()
-                    st.markdown('<hr style="margin: 0.4rem 0;">', unsafe_allow_html=True)
+                st.markdown('<hr style="margin: 0.4rem 0;">', unsafe_allow_html=True)
 
         if bulk_selected:
             st.markdown(f"**{len(bulk_selected)} selected**")
