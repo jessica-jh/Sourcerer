@@ -2,6 +2,7 @@ import json
 import sys
 
 from refsearch.models import Paper, ScoredPaper
+from refsearch.scoring import section
 
 RESEARCH_THRESHOLD = 0.5
 MAX_RESEARCH_ROUNDS = 2
@@ -42,8 +43,13 @@ def _context_window(full_text: str, evidence_sentences: list[str], window_chars:
     single best-match sentence -- or even its immediate neighbors -- wouldn't
     contain, causing the judge to see a technically-true but incomplete excerpt
     and misjudge it as unsupported."""
+    # full_text carries [[SECTION::...]] markers (refsearch.scoring.section)
+    # -- positions below are computed against the marked-up text (evidence
+    # sentences' own positions are unaffected by the markers, which only add
+    # extra lines between paragraphs), but the text actually returned is
+    # stripped so the LLM never sees the raw marker syntax.
     if not evidence_sentences or not any(evidence_sentences):
-        return full_text[:800]
+        return section.strip_markers(full_text)[:800]
 
     spans: list[tuple[int, int]] = []
     for sentence in evidence_sentences:
@@ -65,7 +71,7 @@ def _context_window(full_text: str, evidence_sentences: list[str], window_chars:
         else:
             merged.append([start, end])
 
-    return "\n[...]\n".join(full_text[start:end] for start, end in merged)
+    return section.strip_markers("\n[...]\n".join(full_text[start:end] for start, end in merged))
 
 
 def _build_prompt(

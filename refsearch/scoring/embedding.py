@@ -4,6 +4,7 @@ import re
 import numpy as np
 
 from refsearch.models import Paper, ScoredPaper
+from refsearch.scoring import section
 from refsearch.scoring.keyword import _words
 
 _MODEL_NAME = "all-MiniLM-L6-v2"
@@ -24,7 +25,13 @@ def _cache_path(pdf_filename: str) -> str:
 
 
 def _searchable_text(paper: Paper) -> str:
-    return f"{paper.abstract} {paper.full_text}".strip() if paper.full_text else paper.abstract
+    # full_text carries [[SECTION::...]] markers (see grobid_client and
+    # refsearch.scoring.section) -- strip them here so they never end up
+    # glued onto a sentence's embedding or shown as part of an evidence
+    # sentence in the UI. section.find_section reads the marked-up
+    # paper.full_text directly, not this cleaned copy.
+    full_text = section.strip_markers(paper.full_text) if paper.full_text else ""
+    return f"{paper.abstract} {full_text}".strip() if full_text else paper.abstract
 
 
 def build_and_cache(paper: Paper) -> None:

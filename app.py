@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from refsearch import grobid_client, library
 from refsearch.citation import format_apa, format_intext_authors, format_intext_citation, looks_like_recitation
 from refsearch.library_pipeline import find_supporting, verify_citation
+from refsearch.scoring import section
 
 load_dotenv()
 
@@ -52,6 +53,27 @@ def _attribution_from_rationale(rationale: str) -> str | None:
         if rationale.startswith(f"[{label}]"):
             return label
     return None
+
+
+def _evidence_section_caption(paper, evidence_sentence: str) -> str | None:
+    """Tells the user which section of `paper` the evidence sentence came
+    from, and what that implies -- a Results/Discussion sentence is likely
+    the paper's own claim, while an Introduction/Literature Review sentence
+    is often reciting someone else's finding to set up the paper's framing.
+    Returns None when the section can't be determined (abstract-only
+    candidate, or a library paper ingested before section markers were
+    added -- needs a re-parse via the Library tab to backfill)."""
+    if not evidence_sentence or not paper.full_text:
+        return None
+    heading = section.find_section(paper.full_text, evidence_sentence)
+    if not heading:
+        return None
+    category = section.classify_section(heading)
+    if category == "background":
+        return f"📚 From “{heading}” — may be reporting prior work, not this paper's own finding."
+    if category == "own_content":
+        return f"✅ From “{heading}” — appears to be this paper's own content."
+    return f"From “{heading}”."
 
 
 async def _check_grobid_alive() -> bool:
@@ -420,6 +442,9 @@ with tab_search:
                     st.markdown(format_apa(sp.paper))
                     if sp.evidence_sentence:
                         st.markdown(f"*Evidence:* {sp.evidence_sentence}")
+                        section_caption = _evidence_section_caption(sp.paper, sp.evidence_sentence)
+                        if section_caption:
+                            st.caption(section_caption)
                         if looks_like_recitation(sp.evidence_sentence):
                             st.caption(
                                 "⚠️ This sentence appears to cite another source within it — "
@@ -454,6 +479,9 @@ with tab_verify:
                 st.markdown(f":{color}[**{(attribution or 'unknown').upper()}**] — score={result.score:.3f}")
                 if result.evidence_sentence:
                     st.markdown(f"*Evidence:* {result.evidence_sentence}")
+                    section_caption = _evidence_section_caption(paper, result.evidence_sentence)
+                    if section_caption:
+                        st.caption(section_caption)
                     if looks_like_recitation(result.evidence_sentence):
                         st.caption(
                             "⚠️ This sentence appears to cite another source within it — "

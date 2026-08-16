@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import httpx
 
 from refsearch.models import Paper
+from refsearch.scoring import section
 
 _TEI_NS = "http://www.tei-c.org/ns/1.0"
 _NS = {"tei": _TEI_NS}
@@ -148,11 +149,32 @@ def _extract_abstract(root: ET.Element) -> str:
 
 
 def _extract_full_text(root: ET.Element) -> str:
+    """Preserves GROBID's <div><head> section headings as inline markers
+    (see refsearch.scoring.section) instead of flattening every paragraph
+    into one blob -- lets evidence sentences later be traced back to the
+    section they came from, e.g. to tell apart a paper's own claim
+    (Results/Discussion) from it citing someone else's finding while
+    setting up background (Introduction/Literature Review)."""
     body_el = root.find(".//tei:text/tei:body", _NS)
     if body_el is None:
         return ""
-    paragraphs = [_text(p) for p in body_el.findall(".//tei:p", _NS)]
-    return "\n".join(p for p in paragraphs if p)
+    divs = body_el.findall(".//tei:div", _NS)
+    if not divs:
+        # No section structure at all (rare, small/malformed documents) --
+        # fall back to the old flat extraction rather than losing the body.
+        paragraphs = [_text(p) for p in body_el.findall(".//tei:p", _NS)]
+        return "\n".join(p for p in paragraphs if p)
+
+    parts = []
+    for div in divs:
+        heading = _text(div.find("tei:head", _NS))
+        paragraphs = [p for p in (_text(el) for el in div.findall("tei:p", _NS)) if p]
+        if not paragraphs:
+            continue
+        if heading:
+            parts.append(section.build_marker(heading))
+        parts.extend(paragraphs)
+    return "\n".join(parts)
 
 
 _PLACEHOLDER_TITLES = {
