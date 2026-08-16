@@ -9,7 +9,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from refsearch import grobid_client, library
-from refsearch.citation import format_apa, format_intext_authors
+from refsearch.citation import format_apa, format_intext_authors, format_intext_citation
 from refsearch.library_pipeline import find_supporting, verify_citation
 
 load_dotenv()
@@ -408,7 +408,8 @@ with tab_search:
                 else:
                     badge = ":red[●] weak"
                 with st.container(border=True):
-                    st.markdown(f"**[{rank}] score={sp.score:.3f}** {badge} — {format_apa(sp.paper)}")
+                    st.markdown(f"**[{rank}] score={sp.score:.3f}** {badge} — **{format_intext_citation(sp.paper)}**")
+                    st.markdown(format_apa(sp.paper))
                     if sp.evidence_sentence:
                         st.markdown(f"*Evidence:* {sp.evidence_sentence}")
                     if sp.rationale:

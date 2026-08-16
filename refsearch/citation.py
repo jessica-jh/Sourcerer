@@ -38,6 +38,14 @@ def format_intext_authors(authors: list[str]) -> str:
     return f"{last_names[0]} et al."
 
 
+def format_intext_citation(paper: Paper) -> str:
+    """APA narrative in-text citation, e.g. "Wen and Zhu (2019)" -- what you'd
+    paste directly into a manuscript sentence ("As Wen and Zhu (2019) show,
+    ..."), as opposed to format_apa's full reference-list entry."""
+    year = paper.year if paper.year else "n.d."
+    return f"{format_intext_authors(paper.authors)} ({year})"
+
+
 def format_apa(paper: Paper) -> str:
     authors = _apa_authors(paper.authors)
     year = paper.year if paper.year else "n.d."

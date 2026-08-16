@@ -80,14 +80,27 @@ def _extract_title(root: ET.Element) -> str:
 
 def _extract_authors(root: ET.Element) -> list[str]:
     authors = []
+    seen: set[str] = set()
     for pers_name in root.findall(
         ".//tei:teiHeader//tei:sourceDesc//tei:biblStruct//tei:analytic/tei:author/tei:persName", _NS
     ):
         forename = " ".join(_text(el) for el in pers_name.findall("tei:forename", _NS))
         surname = _text(pers_name.find("tei:surname", _NS))
         name = " ".join(p for p in [forename, surname] if p)
-        if name:
-            authors.append(name)
+        # GROBID occasionally leaks a footnote/affiliation marker (observed:
+        # a leading "|") into the forename when the PDF's author line has a
+        # superscript marker right next to the name -- strip it, since it's
+        # never a real part of the name. This can also produce the same
+        # author twice (once with the marker, once without); dedupe by the
+        # cleaned name so both collapse into one entry.
+        name = name.strip(" |*†‡")
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        authors.append(name)
     return authors
 
 
