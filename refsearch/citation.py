@@ -4,6 +4,32 @@ from refsearch.models import Paper
 
 _WORD_RE = re.compile(r"[A-Za-z]+")
 
+# Heuristic detectors for an in-text citation embedded in a sentence, e.g.
+# "(Smith, 2020)", "Smith and Jones (2020)", "[12]" -- used to flag when an
+# evidence sentence pulled from a paper's body text is itself reporting a
+# *different* source's finding (common in literature-review passages) rather
+# than the paper's own claim. Citing the paper we found the sentence in would
+# then misattribute the claim to the wrong source. This is intentionally a
+# surface-level regex check, not a real citation-graph resolution (we don't
+# parse each paper's bibliography) -- it will miss unusual citation styles
+# and can false-positive on an incidental "(Word, 1999)"-shaped parenthetical,
+# but common APA/numeric styles cover the large majority of cases in practice.
+_RECITATION_PATTERNS = [
+    # Parenthetical APA: "(Smith, 2020)", "(Smith & Jones, 2020)", "(Smith et al., 2020)"
+    re.compile(r"\([A-Z][A-Za-z\-]+(?:\s*(?:&|and|,)\s*[A-Z][A-Za-z\-]+)*(?:\set al\.)?,?\s(?:19|20)\d{2}[a-z]?\)"),
+    # Narrative APA: "Smith (2020)", "Smith and Jones (2020)", "Smith et al. (2020)"
+    re.compile(r"\b[A-Z][A-Za-z\-]+(?:\s(?:and|&)\s[A-Z][A-Za-z\-]+|\set al\.)?\s\((?:19|20)\d{2}[a-z]?\)"),
+    # Numeric bracket style: "[12]", "[3, 4]", "[5-7]"
+    re.compile(r"\[\d+(?:\s*[,\-–]\s*\d+)*\]"),
+]
+
+
+def looks_like_recitation(sentence: str) -> bool:
+    """True if `sentence` appears to contain an embedded in-text citation of
+    another work, rather than being the paper's own original statement --
+    see module-level note above on the detection approach and its limits."""
+    return any(p.search(sentence) for p in _RECITATION_PATTERNS)
+
 
 def _apa_authors(authors: list[str]) -> str:
     def to_last_first(name: str) -> str:

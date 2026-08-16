@@ -9,7 +9,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from refsearch import grobid_client, library
-from refsearch.citation import format_apa, format_intext_authors, format_intext_citation
+from refsearch.citation import format_apa, format_intext_authors, format_intext_citation, looks_like_recitation
 from refsearch.library_pipeline import find_supporting, verify_citation
 
 load_dotenv()
@@ -404,6 +404,11 @@ with tab_search:
                     st.markdown(format_apa(sp.paper))
                     if sp.evidence_sentence:
                         st.markdown(f"*Evidence:* {sp.evidence_sentence}")
+                        if looks_like_recitation(sp.evidence_sentence):
+                            st.caption(
+                                "⚠️ This sentence appears to cite another source within it — "
+                                "check the original before citing this paper for the claim."
+                            )
                     if sp.rationale:
                         st.markdown(f"*Rationale:* {sp.rationale}")
 
@@ -433,5 +438,10 @@ with tab_verify:
                 st.markdown(f":{color}[**{(attribution or 'unknown').upper()}**] — score={result.score:.3f}")
                 if result.evidence_sentence:
                     st.markdown(f"*Evidence:* {result.evidence_sentence}")
+                    if looks_like_recitation(result.evidence_sentence):
+                        st.caption(
+                            "⚠️ This sentence appears to cite another source within it — "
+                            "check the original before citing this paper for the claim."
+                        )
                 if result.rationale:
                     st.markdown(f"*Rationale:* {result.rationale}")
