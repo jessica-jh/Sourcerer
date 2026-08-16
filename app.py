@@ -141,152 +141,104 @@ with tab_library:
     if not papers:
         st.info("Library is empty. Upload a PDF above to get started.")
     else:
-        list_col, detail_col = st.columns([3, 2])
-
-        with list_col:
-            filter_col, search_col = st.columns([1, 2])
-            with filter_col:
-                collection_filter = _collection_picker("Collection", key="library_collection_filter")
-            with search_col:
-                query = st.text_input(
-                    "Search",
-                    key="library_search",
-                    placeholder="Search in All References",
-                )
-
-            filtered = papers
-            if collection_filter != "All":
-                filtered = [p for p in filtered if p.collection == collection_filter]
-            if query.strip():
-                q = query.strip().lower()
-                filtered = [p for p in filtered if q in p.title.lower() or q in " ".join(p.authors).lower()]
-            st.caption(f"{len(filtered)} reference(s)")
-
-            # st.dataframe's row selection turned out unreliable in practice
-            # (clicking a row highlights it but doesn't always fire the
-            # on_select rerun) -- back to plain st.button per cell, which
-            # behaves predictably. Every cell in a row triggers the same
-            # action, so clicking anywhere in the row (not just the title)
-            # opens its detail panel. CSS below strips the button chrome so
-            # the columns of buttons read as table cells/rows, with a
-            # bottom border per row and a hover highlight.
-            st.markdown(
-                """
-                <style>
-                div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
-                    text-align: left;
-                    justify-content: flex-start;
-                    border: none;
-                    background: transparent;
-                    padding: 0.35rem 0.25rem;
-                    border-radius: 0;
-                    width: 100%;
-                }
-                div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover {
-                    background: rgba(128, 128, 128, 0.15);
-                    color: inherit;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
+        filter_col, search_col = st.columns([1, 2])
+        with filter_col:
+            collection_filter = _collection_picker("Collection", key="library_collection_filter")
+        with search_col:
+            query = st.text_input(
+                "Search",
+                key="library_search",
+                placeholder="Search in All References",
             )
 
-            select_all_col, clear_all_col = st.columns([1, 4])
-            with select_all_col:
-                if st.button("Select all", key="select_all_btn"):
-                    for p in filtered:
-                        st.session_state[f"bulk_{p.pdf_filename or p.title}"] = True
-            with clear_all_col:
-                if st.button("Clear all", key="clear_all_btn"):
-                    for p in filtered:
-                        st.session_state[f"bulk_{p.pdf_filename or p.title}"] = False
+        filtered = papers
+        if collection_filter != "All":
+            filtered = [p for p in filtered if p.collection == collection_filter]
+        if query.strip():
+            q = query.strip().lower()
+            filtered = [p for p in filtered if q in p.title.lower() or q in " ".join(p.authors).lower()]
+        st.caption(f"{len(filtered)} reference(s)")
 
-            row_widths = [0.6, 3.2, 2.3, 0.8, 1.5]
-            header_cols = st.columns(row_widths)
-            for col, label in zip(header_cols, ["", "Title", "Authors", "Year", "Collection"]):
-                col.markdown(f"**{label}**")
-            st.markdown('<hr style="margin: 0.1rem 0 0.4rem 0;">', unsafe_allow_html=True)
+        # st.dataframe's row selection turned out unreliable in practice
+        # (clicking a row highlights it but doesn't always fire the
+        # on_select rerun) -- back to plain st.button per cell, which
+        # behaves predictably. Every cell in a row triggers the same
+        # action, so clicking anywhere in the row (not just the title)
+        # toggles its detail panel open/closed. CSS below strips the button
+        # chrome so the columns of buttons read as table cells/rows, with a
+        # bottom border per row and a hover highlight.
+        st.markdown(
+            """
+            <style>
+            div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button {
+                text-align: left;
+                justify-content: flex-start;
+                border: none;
+                background: transparent;
+                padding: 0.35rem 0.25rem;
+                border-radius: 0;
+                width: 100%;
+            }
+            div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button:hover {
+                background: rgba(128, 128, 128, 0.15);
+                color: inherit;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
-            # Fixed-height container so the row list scrolls on its own,
-            # independent of the page -- otherwise clicking a row near the
-            # bottom opens its detail panel in detail_col, but that panel is
-            # back up at the top of the page and you have to scroll all the
-            # way up to see it.
-            bulk_selected: list[str] = []
-            with st.container(height=500, border=False):
+        select_all_col, clear_all_col = st.columns([1, 4])
+        with select_all_col:
+            if st.button("Select all", key="select_all_btn"):
                 for p in filtered:
-                    row_id = p.pdf_filename or p.title
+                    st.session_state[f"bulk_{p.pdf_filename or p.title}"] = True
+        with clear_all_col:
+            if st.button("Clear all", key="clear_all_btn"):
+                for p in filtered:
+                    st.session_state[f"bulk_{p.pdf_filename or p.title}"] = False
 
-                    def _open_detail(pdf_filename=p.pdf_filename):
+        row_widths = [0.6, 3.2, 2.3, 0.8, 1.5]
+        header_cols = st.columns(row_widths)
+        for col, label in zip(header_cols, ["", "Title", "Authors", "Year", "Collection"]):
+            col.markdown(f"**{label}**")
+        st.markdown('<hr style="margin: 0.1rem 0 0.4rem 0;">', unsafe_allow_html=True)
+
+        # Fixed-height container so the row list scrolls on its own,
+        # independent of the page. Detail now renders inline directly under
+        # its row (accordion-style, pushing later rows down) instead of in a
+        # separate side panel that stayed at the top of the page regardless
+        # of which row you clicked.
+        bulk_selected: list[str] = []
+        with st.container(height=500, border=False):
+            for p in filtered:
+                row_id = p.pdf_filename or p.title
+
+                def _toggle_detail(pdf_filename=p.pdf_filename):
+                    if st.session_state.get("library_detail") == pdf_filename:
+                        st.session_state.library_detail = None
+                    else:
                         st.session_state.library_detail = pdf_filename
                         st.session_state[f"editing_{pdf_filename}"] = False
 
-                    cols = st.columns(row_widths)
-                    checked = cols[0].checkbox("select", key=f"bulk_{row_id}", label_visibility="collapsed")
-                    if checked and p.pdf_filename:
-                        bulk_selected.append(p.pdf_filename)
-                    if cols[1].button(p.title, key=f"cell_title_{row_id}", use_container_width=True):
-                        _open_detail()
-                    if cols[2].button(
-                        format_intext_authors(p.authors), key=f"cell_authors_{row_id}", use_container_width=True
-                    ):
-                        _open_detail()
-                    if cols[3].button(str(p.year or "n.d."), key=f"cell_year_{row_id}", use_container_width=True):
-                        _open_detail()
-                    if cols[4].button(p.collection, key=f"cell_collection_{row_id}", use_container_width=True):
-                        _open_detail()
-                    st.markdown('<hr style="margin: 0.1rem 0;">', unsafe_allow_html=True)
+                cols = st.columns(row_widths)
+                checked = cols[0].checkbox("select", key=f"bulk_{row_id}", label_visibility="collapsed")
+                if checked and p.pdf_filename:
+                    bulk_selected.append(p.pdf_filename)
+                if cols[1].button(p.title, key=f"cell_title_{row_id}", use_container_width=True):
+                    _toggle_detail()
+                if cols[2].button(
+                    format_intext_authors(p.authors), key=f"cell_authors_{row_id}", use_container_width=True
+                ):
+                    _toggle_detail()
+                if cols[3].button(str(p.year or "n.d."), key=f"cell_year_{row_id}", use_container_width=True):
+                    _toggle_detail()
+                if cols[4].button(p.collection, key=f"cell_collection_{row_id}", use_container_width=True):
+                    _toggle_detail()
+                st.markdown('<hr style="margin: 0.1rem 0;">', unsafe_allow_html=True)
 
-            if bulk_selected:
-                st.markdown(f"**{len(bulk_selected)} selected**")
-                bulk_target = st.selectbox(
-                    "Move selected to collection",
-                    library.list_collections() + [NEW_COLLECTION_OPTION],
-                    key="bulk_target_collection",
-                    label_visibility="collapsed",
-                )
-                if bulk_target == NEW_COLLECTION_OPTION:
-                    bulk_target = st.text_input("New collection name", key="bulk_new_collection").strip() or "Uncategorized"
-
-                move_btn_col, delete_btn_col = st.columns(2)
-                with move_btn_col:
-                    if st.button(f"Move {len(bulk_selected)} paper(s)"):
-                        library.set_collection_bulk(bulk_selected, bulk_target)
-                        st.success(f"Moved to '{bulk_target}'.")
-                        st.rerun()
-                with delete_btn_col:
-                    confirm_bulk_delete = "confirm_bulk_delete"
-                    if not st.session_state.get(confirm_bulk_delete):
-                        if st.button(f"🗑 Delete {len(bulk_selected)} paper(s)"):
-                            st.session_state[confirm_bulk_delete] = True
-                            st.rerun()
-                    else:
-                        st.warning(f"Delete {len(bulk_selected)} paper(s) permanently?")
-                        yes_col, no_col = st.columns(2)
-                        if yes_col.button("Yes, delete", key="bulk_delete_yes"):
-                            for pdf_filename in bulk_selected:
-                                match = next((fp for fp in papers if fp.pdf_filename == pdf_filename), None)
-                                if match:
-                                    library.delete_paper(match)
-                            st.session_state.pop(confirm_bulk_delete, None)
-                            if st.session_state.get("library_detail") in bulk_selected:
-                                st.session_state.library_detail = None
-                            st.rerun()
-                        if no_col.button("Cancel", key="bulk_delete_no"):
-                            st.session_state.pop(confirm_bulk_delete, None)
-                            st.rerun()
-
-        with detail_col:
-            detail_filename = st.session_state.get("library_detail")
-            if len(bulk_selected) > 1:
-                st.info(f"{len(bulk_selected)} paper(s) checked — use the bulk actions on the left, or check just one to view its details.")
-            elif not detail_filename:
-                st.info("Click a row to view its details here.")
-            else:
-                p = next((fp for fp in papers if fp.pdf_filename == detail_filename), None)
-                if p is None:
-                    st.session_state.library_detail = None
-                else:
+                if p.pdf_filename and p.pdf_filename == st.session_state.get("library_detail"):
+                    detail_filename = p.pdf_filename
                     with st.container(border=True):
                         editing = st.session_state.get(f"editing_{detail_filename}", False)
                         if not editing:
@@ -373,6 +325,46 @@ with tab_library:
                                 if no_col.button("Cancel", key=f"{delete_key}_no"):
                                     st.session_state.pop(confirm_key, None)
                                     st.rerun()
+                    st.markdown('<hr style="margin: 0.4rem 0;">', unsafe_allow_html=True)
+
+        if bulk_selected:
+            st.markdown(f"**{len(bulk_selected)} selected**")
+            bulk_target = st.selectbox(
+                "Move selected to collection",
+                library.list_collections() + [NEW_COLLECTION_OPTION],
+                key="bulk_target_collection",
+                label_visibility="collapsed",
+            )
+            if bulk_target == NEW_COLLECTION_OPTION:
+                bulk_target = st.text_input("New collection name", key="bulk_new_collection").strip() or "Uncategorized"
+
+            move_btn_col, delete_btn_col = st.columns(2)
+            with move_btn_col:
+                if st.button(f"Move {len(bulk_selected)} paper(s)"):
+                    library.set_collection_bulk(bulk_selected, bulk_target)
+                    st.success(f"Moved to '{bulk_target}'.")
+                    st.rerun()
+            with delete_btn_col:
+                confirm_bulk_delete = "confirm_bulk_delete"
+                if not st.session_state.get(confirm_bulk_delete):
+                    if st.button(f"🗑 Delete {len(bulk_selected)} paper(s)"):
+                        st.session_state[confirm_bulk_delete] = True
+                        st.rerun()
+                else:
+                    st.warning(f"Delete {len(bulk_selected)} paper(s) permanently?")
+                    yes_col, no_col = st.columns(2)
+                    if yes_col.button("Yes, delete", key="bulk_delete_yes"):
+                        for pdf_filename in bulk_selected:
+                            match = next((fp for fp in papers if fp.pdf_filename == pdf_filename), None)
+                            if match:
+                                library.delete_paper(match)
+                        st.session_state.pop(confirm_bulk_delete, None)
+                        if st.session_state.get("library_detail") in bulk_selected:
+                            st.session_state.library_detail = None
+                        st.rerun()
+                    if no_col.button("Cancel", key="bulk_delete_no"):
+                        st.session_state.pop(confirm_bulk_delete, None)
+                        st.rerun()
 
 with tab_search:
     st.subheader("Find a supporting paper for a claim sentence")
