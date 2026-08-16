@@ -23,12 +23,25 @@ async def is_alive(client: httpx.AsyncClient, grobid_url: str = "http://localhos
 
 async def process_pdf(client: httpx.AsyncClient, pdf_path: str, *, grobid_url: str = "http://localhost:8070") -> str:
     """Uploads a PDF to a running GROBID server and returns the TEI XML response
-    (full-text extraction: header metadata + body paragraphs)."""
+    (full-text extraction: header metadata + body paragraphs).
+
+    consolidateHeader=1 has GROBID cross-check its own layout-parsed header
+    against CrossRef (using whatever title/DOI it already found) and use the
+    matched record's metadata instead where available. This matters more
+    than it sounds: GROBID's raw byline parser can badly mis-segment author
+    names when a PDF's author line mixes in affiliations or uses an unusual
+    layout (observed on one paper: a 4-author byline came out as 9 garbled
+    fragments, one of them literally an affiliation's name) -- CrossRef's
+    author list for the same DOI doesn't have that failure mode. Tested
+    against a real ingest: fixed the author list, filled in the (previously
+    empty) venue too, and added no measurable latency (CrossRef lookup is
+    apparently not the bottleneck -- PDF processing itself is)."""
     try:
         with open(pdf_path, "rb") as f:
             response = await client.post(
                 f"{grobid_url}/api/processFulltextDocument",
                 files={"input": (pdf_path, f, "application/pdf")},
+                data={"consolidateHeader": "1"},
                 timeout=120,
             )
     except httpx.ConnectError as exc:
