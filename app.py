@@ -240,6 +240,9 @@ with tab_library:
                 if p.pdf_filename and p.pdf_filename == st.session_state.get("library_detail"):
                     detail_filename = p.pdf_filename
                     with st.container(border=True):
+                        if st.button("✕ Close", key=f"close_btn_{detail_filename}"):
+                            st.session_state.library_detail = None
+                            st.rerun()
                         editing = st.session_state.get(f"editing_{detail_filename}", False)
                         if not editing:
                             st.markdown(f"### {p.title}")
