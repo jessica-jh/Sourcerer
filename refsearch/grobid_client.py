@@ -148,13 +148,26 @@ def _extract_abstract(root: ET.Element) -> str:
     return " ".join(p for p in paragraphs if p) or _text(abstract_el)
 
 
+_TOP_LEVEL_N_RE = re.compile(r"^\d+\.?$")
+
+
 def _extract_full_text(root: ET.Element) -> str:
     """Preserves GROBID's <div><head> section headings as inline markers
     (see refsearch.scoring.section) instead of flattening every paragraph
     into one blob -- lets evidence sentences later be traced back to the
     section they came from, e.g. to tell apart a paper's own claim
     (Results/Discussion) from it citing someone else's finding while
-    setting up background (Introduction/Literature Review)."""
+    setting up background (Introduction/Literature Review).
+
+    GROBID doesn't nest <div>s for subsections -- "2. Theoretical Background"
+    and "2.1 Platform Governance" are sibling divs, distinguished only by the
+    @n attribute's dot count ("2." vs "2.1."). Markers use the top-level
+    heading only (walking subsections back up to their parent), since a bare
+    subsection title out of context ("Platform Governance, Entry, and...")
+    doesn't tell the user what part of the paper it's from the way
+    "Theoretical Background" does. Papers with no @n numbering at all (some
+    GROBID runs/templates) fall back to treating every heading as its own
+    top-level section, same as before this distinction existed."""
     body_el = root.find(".//tei:text/tei:body", _NS)
     if body_el is None:
         return ""
@@ -165,14 +178,30 @@ def _extract_full_text(root: ET.Element) -> str:
         paragraphs = [_text(p) for p in body_el.findall(".//tei:p", _NS)]
         return "\n".join(p for p in paragraphs if p)
 
+    def _n(div: ET.Element) -> str:
+        head_el = div.find("tei:head", _NS)
+        return (head_el.get("n") or "").strip() if head_el is not None else ""
+
+    has_numbering = any(_n(div) for div in divs)
+
     parts = []
+    current_heading = None
+    last_marked_heading = None
     for div in divs:
         heading = _text(div.find("tei:head", _NS))
         paragraphs = [p for p in (_text(el) for el in div.findall("tei:p", _NS)) if p]
+
+        if heading and (not has_numbering or _TOP_LEVEL_N_RE.match(_n(div))):
+            current_heading = heading
+        # else: a numbered subsection (e.g. "2.1."), or a heading missing its
+        # own number in an otherwise-numbered document -- keep the running
+        # top-level heading rather than treating it as a new section.
+
         if not paragraphs:
             continue
-        if heading:
-            parts.append(section.build_marker(heading))
+        if current_heading and current_heading != last_marked_heading:
+            parts.append(section.build_marker(current_heading))
+            last_marked_heading = current_heading
         parts.extend(paragraphs)
     return "\n".join(parts)
 
