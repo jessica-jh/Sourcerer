@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from refsearch import grobid_client, library
 from refsearch.citation import format_apa, format_intext_authors, format_intext_citation, looks_like_recitation
-from refsearch.library_pipeline import find_supporting, verify_citation
+from refsearch.library_pipeline import find_supporting
 from refsearch.scoring import section
 
 load_dotenv()
@@ -38,21 +38,8 @@ NEW_COLLECTION_OPTION = "+ New collection..."
 STRONG_MATCH_THRESHOLD = 0.8
 WEAK_MATCH_THRESHOLD = 0.4
 
-ATTRIBUTION_COLORS = {
-    "genuine": "green",
-    "topical": "orange",
-    "contradicts": "red",
-}
-
 if "uploader_key" not in st.session_state:
     st.session_state.uploader_key = 0
-
-
-def _attribution_from_rationale(rationale: str) -> str | None:
-    for label in ATTRIBUTION_COLORS:
-        if rationale.startswith(f"[{label}]"):
-            return label
-    return None
 
 
 def _evidence_section_caption(paper, evidence_sentence: str) -> str | None:
@@ -123,7 +110,7 @@ with key_col:
     else:
         st.error("OPENAI_API_KEY not set (.env) — search/verify need it.")
 
-tab_library, tab_search, tab_verify = st.tabs(["Library", "Search", "Verify citation"])
+tab_library, tab_search = st.tabs(["Library", "Search"])
 
 with tab_library:
     st.subheader("Add papers")
@@ -452,40 +439,3 @@ with tab_search:
                             )
                     if sp.rationale:
                         st.markdown(f"*Rationale:* {sp.rationale}")
-
-with tab_verify:
-    st.subheader("Check whether citing a specific paper here is appropriate")
-    verify_collection = _collection_picker("Collection", key="verify_collection_filter")
-    papers = library.load_library()
-    if verify_collection != "All":
-        papers = [p for p in papers if p.collection == verify_collection]
-    verify_sentence = st.text_area("Claim sentence", key="verify_sentence")
-    if not papers:
-        st.warning("No papers in this collection. Add papers in the Library tab first.")
-    else:
-        titles = [p.title for p in papers]
-        selected_title = st.selectbox("Paper to verify against", titles)
-        if st.button("Verify citation"):
-            if not verify_sentence.strip():
-                st.warning("Enter a sentence to verify.")
-            else:
-                paper = next(p for p in papers if p.title == selected_title)
-                with st.spinner("Judging attribution..."):
-                    result = asyncio.run(
-                        verify_citation(verify_sentence, paper, api_key=API_KEY, model=MODEL)
-                    )
-                attribution = _attribution_from_rationale(result.rationale)
-                color = ATTRIBUTION_COLORS.get(attribution, "gray")
-                st.markdown(f":{color}[**{(attribution or 'unknown').upper()}**] — score={result.score:.3f}")
-                if result.evidence_sentence:
-                    st.markdown(f"*Evidence:* {result.evidence_sentence}")
-                    section_caption = _evidence_section_caption(paper, result.evidence_sentence)
-                    if section_caption:
-                        st.caption(section_caption)
-                    if looks_like_recitation(result.evidence_sentence):
-                        st.caption(
-                            "⚠️ This sentence appears to cite another source within it — "
-                            "check the original before citing this paper for the claim."
-                        )
-                if result.rationale:
-                    st.markdown(f"*Rationale:* {result.rationale}")
