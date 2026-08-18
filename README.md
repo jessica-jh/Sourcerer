@@ -4,7 +4,7 @@ A personal citation-finding tool. Upload your PDF library, type a claim sentence
 
 ## Why this exists
 
-As a researcher, sometimes I kept hitting the same wall while writing a literature review: I'd type a sentence, feel certain I'd read that exact claim somewhere in my own pile of PDFs, and have no idea which paper it was actually in. 😩 So I'd go try the obvious fixes, and none of them really solved it.
+During my PhD journey, I kept hitting the same wall while writing a literature review: I'd type a sentence, feel certain I'd read that exact claim somewhere in my own pile of PDFs, and have no idea which paper it was actually in. 😩 So I'd go try the obvious fixes, and none of them really solved it.
 
 - **Reference managers don't search inside the papers.** Zotero, Mendeley, EndNote are great at storing and tagging your PDFs, but they can't tell you which one made a specific claim. You still have to remember, or go through them one by one.
 - **Keyword search misses the point, literally.** Ctrl+F only finds the exact words you type. If the paper phrased the same idea differently, which it almost always does, the search comes up empty.
