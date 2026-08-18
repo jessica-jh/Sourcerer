@@ -4,14 +4,16 @@ A personal citation-finding tool. Upload your PDF library, type a claim sentence
 
 ## Why this exists
 
-Writing a literature review means constantly checking "do I already have a source for this?" The usual tools don't quite answer that question.
+I kept hitting the same wall while writing a literature review: I'd type a sentence, feel certain I'd read that exact claim somewhere in my own pile of PDFs, and have no idea which paper it was actually in. 😩 So I'd go try the obvious fixes, and none of them really solved it.
 
-- **No search inside the PDFs.** Reference managers (Zotero, Mendeley, EndNote) are good at storing and tagging papers, but you still have to remember which one said what, or read back through your library by hand.
-- **Misses paraphrases.** Keyword search (Ctrl+F, or a reference manager's search box) only finds exact word matches. A sentence phrased differently from your claim, even if it means the same thing, gets missed.
-- **Can invent or misattribute.** Asking an LLM directly for a citation is risky two ways: it can name a paper that doesn't exist, and even when it names a real one, it usually can't tell you whether that paper is really making the claim itself, or just quoting someone else's finding while it sets up its own background section.
-- **Searches the wrong library.** Google Scholar and Semantic Scholar search the whole web's literature, not your own already-vetted collection, so half the results are papers you don't have and haven't read.
+- **Reference managers don't search inside the papers.** Zotero, Mendeley, EndNote are great at storing and tagging your PDFs, but they can't tell you which one made a specific claim. You still have to remember, or go through them one by one.
+- **Keyword search misses the point, literally.** Ctrl+F only finds the exact words you type. If the paper phrased the same idea differently, which it almost always does, the search comes up empty.
+- **Asking an LLM directly is a coin flip.** 🪙 It can name a paper that doesn't exist, and even when it names a real one, it usually can't tell you if that paper is really making the claim itself, or just citing someone else's finding while it sets up its own background section.
+- **Google Scholar searches the wrong library.** It searches the entire internet's papers, not the ones already sitting in your folder that you've actually read and can cite right now.
 
-Sourcerer only searches papers you've actually ingested, so every result is something you can open and cite right away. It shows the literal sentence its judgment is based on, not a paraphrase. And it flags when that sentence looks like it's reciting a different source, which is the exact failure mode where you'd otherwise cite the wrong paper for a claim.
+None of these answer the question I actually had: *which paper in my own library says this, and where exactly does it say it?*
+
+So Sourcerer only searches what you've ingested. Every result comes with the literal sentence it's judging from, never a summary or a guess, plus a flag for when that sentence is itself quoting someone else, so you don't end up citing the wrong paper for a claim that isn't really its own.
 
 ## Demo
 
