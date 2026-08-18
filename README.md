@@ -1,4 +1,4 @@
-# Sourcerer
+# Sourcerer 🧙🏻‍♀️
 
 A personal citation-finding tool. Upload your PDF library, type a claim sentence, and it finds which of your own papers actually supports it, with the exact sentence it's judging from.
 
