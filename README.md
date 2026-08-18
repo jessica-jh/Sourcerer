@@ -57,7 +57,6 @@ A search result is never just a paper name. Every result shows the relevance sco
 - Docker, to run GROBID (the PDF parser). Nothing else here needs it.
 - An OpenAI API key. Required, since the LLM judge that scores each candidate runs on `gpt-4o-mini`. Nothing in the app works without it.
 - An OpenAlex API key. Optional. Without it, papers with a DOI but no venue in their PDF metadata just keep an empty venue field instead of getting it backfilled; everything else works the same.
-- A Semantic Scholar API key. Optional, and only relevant if you use `reference_finder.py` (the separate live-search CLI described below). The Streamlit app never touches Semantic Scholar.
 
 ## Setup
 
@@ -68,25 +67,19 @@ pip install -r requirements.txt
 cp .env.example .env  # fill in OPENAI_API_KEY at minimum
 ```
 
-GROBID runs as a local Docker container:
+GROBID runs as a local Docker container. The easiest way to start everything is:
 
 ```bash
-./start_app.command   # starts GROBID if needed, then the Streamlit app
+./start_app.command
 ```
 
-or manually:
+This starts the GROBID container if it isn't already running (waiting until it's actually ready, not just launched) and then starts the Streamlit app. That's the only command you need day to day.
+
+If you'd rather run the two pieces yourself:
 
 ```bash
 docker run -d --name grobid -p 8070:8070 grobid/grobid:0.8.1
 streamlit run app.py
 ```
 
-## Also included: a CLI for live external search
-
-`reference_finder.py` searches Semantic Scholar, arXiv, and OpenAlex live, not your own library. It's a separate tool from the Streamlit app, useful for finding papers you don't have yet:
-
-```bash
-python reference_finder.py "Platform owners entering complementary markets can crowd out third-party innovation." --method all
-```
-
-It supports HyDE query expansion, an LLM-distilled search query, citation-graph expansion, and an iterative requery loop for when the top match scores low. Run it with `--help` for the full flag list. `library_finder.py` is the equivalent CLI for library-only search, for anyone who'd rather not use the Streamlit UI.
+`library_finder.py` is a CLI that covers the same ingest/search functionality as the Streamlit app, for anyone who'd rather script it or skip the UI.

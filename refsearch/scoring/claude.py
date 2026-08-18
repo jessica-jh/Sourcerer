@@ -4,8 +4,6 @@ import sys
 from refsearch.models import Paper, ScoredPaper
 from refsearch.scoring import section
 
-RESEARCH_THRESHOLD = 0.5
-MAX_RESEARCH_ROUNDS = 2
 DEFAULT_MODEL = "gpt-4o-mini"
 
 # Above this many candidates in one prompt, gpt-4o-mini starts skipping some
@@ -172,60 +170,6 @@ async def score(
     return scored
 
 
-async def extract_search_query(sentence: str, *, api_key: str, model: str = DEFAULT_MODEL) -> str:
-    """Distills a long citation-context passage (often 50-100+ words, see
-    eval/build_eval_set.py's masked_text) down to a short, focused search
-    query. The naive alternative (refsearch.query_gen.base_queries, which
-    strips stopwords but keeps everything else, or picks the longest N words)
-    dilutes the paper's actual topic among incidental words and was found to
-    be the dominant cause of retrieval misses (diagnosed via
-    eval/diagnose_recall.py: gold papers were absent from the candidate pool
-    entirely, not merely ranked low)."""
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=api_key)
-    response = await client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Extract a short academic search query (3-5 keywords, never more) "
-                    "that captures the single main topic, method, or contribution being "
-                    "described in the passage below, suitable for a paper search engine "
-                    "like Semantic Scholar. These engines return few or zero results once "
-                    "queries get long, so prefer the smallest set of terms that still "
-                    "identifies the core idea over an exhaustive list. Output ONLY the "
-                    "keywords separated by spaces — no punctuation, no explanation, no quotes."
-                ),
-            },
-            {"role": "user", "content": sentence},
-        ],
-    )
-    return (response.choices[0].message.content or "").strip()
-
-
-async def generate_hyde(sentence: str, *, api_key: str, model: str = DEFAULT_MODEL) -> str:
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=api_key)
-    response = await client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Write a single hypothetical academic abstract paragraph (no title, "
-                    "no citation) that would plausibly support the given claim sentence, "
-                    "in the style of a real paper abstract."
-                ),
-            },
-            {"role": "user", "content": sentence},
-        ],
-    )
-    return (response.choices[0].message.content or "").strip()
-
-
 _VERIFY_SYSTEM = """You check whether a candidate paper is the GENUINE original source of a claim \
 sentence, merely topically related to it, or actually CONTRADICTS it. Classify as one of three \
 attributions:
@@ -332,27 +276,3 @@ async def verify_attribution(
         )
     adjusted.sort(key=lambda sp: sp.score, reverse=True)
     return adjusted
-
-
-async def suggest_requery(
-    sentence: str, top_results: list[ScoredPaper], *, api_key: str, model: str = DEFAULT_MODEL
-) -> str:
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=api_key)
-    summary = "\n".join(f"- score {sp.score:.2f}: {sp.evidence_sentence or '(no evidence)'}" for sp in top_results[:5])
-    response = await client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "The current top search results are weak matches for the claim sentence. "
-                    "Suggest a better, more specific search query (terms only, no explanation) "
-                    "that might retrieve stronger supporting papers."
-                ),
-            },
-            {"role": "user", "content": f'Claim: "{sentence}"\n\nCurrent result evidence:\n{summary}'},
-        ],
-    )
-    return (response.choices[0].message.content or "").strip()
