@@ -5,3 +5,4 @@ results.jsonl
 references.bib
 .env
 library/embeddings/
+library/pdfs/
