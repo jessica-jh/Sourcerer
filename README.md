@@ -6,10 +6,10 @@ A personal citation-finding tool. Upload your PDF library, type a claim sentence
 
 Writing a literature review means constantly checking "do I already have a source for this?" The usual tools don't quite answer that question.
 
-- **Reference managers** (Zotero, Mendeley, EndNote) are good at storing and tagging PDFs, but they don't search inside them for a specific claim. You still have to remember which paper said what, or read back through your library by hand.
-- **Keyword search** (Ctrl+F, or a reference manager's search box) only finds exact word matches. A sentence phrased differently from your claim, even if it says the same thing, gets missed.
-- **Asking an LLM directly** for a citation is risky in two ways: it can invent a paper that doesn't exist, and even when it names a real one, it usually can't tell you if that paper is really making the claim itself, or just quoting someone else's finding while setting up its own background section.
-- **Google Scholar / Semantic Scholar** search the whole web's literature, not your own already-vetted library, so half the results are papers you don't have and haven't read.
+- **No search inside the PDFs.** Reference managers (Zotero, Mendeley, EndNote) are good at storing and tagging papers, but you still have to remember which one said what, or read back through your library by hand.
+- **Misses paraphrases.** Keyword search (Ctrl+F, or a reference manager's search box) only finds exact word matches. A sentence phrased differently from your claim, even if it means the same thing, gets missed.
+- **Can invent or misattribute.** Asking an LLM directly for a citation is risky two ways: it can name a paper that doesn't exist, and even when it names a real one, it usually can't tell you whether that paper is really making the claim itself, or just quoting someone else's finding while it sets up its own background section.
+- **Searches the wrong library.** Google Scholar and Semantic Scholar search the whole web's literature, not your own already-vetted collection, so half the results are papers you don't have and haven't read.
 
 Sourcerer only searches papers you've actually ingested, so every result is something you can open and cite right away. It shows the literal sentence its judgment is based on, not a paraphrase. And it flags when that sentence looks like it's reciting a different source, which is the exact failure mode where you'd otherwise cite the wrong paper for a claim.
 
