@@ -49,6 +49,8 @@ Sourcerer only searches papers you've actually ingested, so every result is some
 - **LLM judge.** `gpt-4o-mini` gives each shortlisted candidate a final 1 to 5 relevance score and a short rationale.
 - **Provenance annotations.** Computed straight from the paper's own text, no extra LLM call needed: which section the evidence sentence lives in, and a regex check for an embedded citation marker like `(Smith, 2020)` or `[12]`, which suggests the sentence is itself reciting a different source rather than stating the paper's own finding.
 
+A search result is never just a paper name. Every result shows the relevance score, the evidence sentence, the LLM's rationale, and which section it came from, all together, on purpose. None of these signals is trustworthy enough on its own to decide "yes, cite this" for you, and it shouldn't try to. The researcher is the one who has to stand behind the citation, so the tool's job is to make that judgment call fast and well informed, not to make it instead of you.
+
 ## Setup
 
 ```bash
