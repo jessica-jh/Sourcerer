@@ -51,6 +51,14 @@ Sourcerer only searches papers you've actually ingested, so every result is some
 
 A search result is never just a paper name. Every result shows the relevance score, the evidence sentence, the LLM's rationale, and which section it came from, all together, on purpose. None of these signals is trustworthy enough on its own to decide "yes, cite this" for you, and it shouldn't try to. The researcher is the one who has to stand behind the citation, so the tool's job is to make that judgment call fast and well informed, not to make it instead of you.
 
+## Requirements
+
+- Python 3.12 (developed and tested on this version, though slightly older 3.x is likely fine since nothing here relies on very new syntax)
+- Docker, to run GROBID (the PDF parser). Nothing else here needs it.
+- An OpenAI API key. Required, since the LLM judge that scores each candidate runs on `gpt-4o-mini`. Nothing in the app works without it.
+- An OpenAlex API key. Optional. Without it, papers with a DOI but no venue in their PDF metadata just keep an empty venue field instead of getting it backfilled; everything else works the same.
+- A Semantic Scholar API key. Optional, and only relevant if you use `reference_finder.py` (the separate live-search CLI described below). The Streamlit app never touches Semantic Scholar.
+
 ## Setup
 
 ```bash
