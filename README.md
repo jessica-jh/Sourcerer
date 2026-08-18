@@ -84,3 +84,7 @@ docker run -d --name grobid -p 8070:8070 grobid/grobid:0.8.1
 ```
 
 `library_finder.py` is a CLI that covers the same ingest/search functionality as the Streamlit app, for anyone who'd rather script it or skip the UI.
+
+---
+
+(Last update: Aug 18, 2026; Writer: Jihye (Jessica) Kim; email: jkim829@ucsc.edu)
